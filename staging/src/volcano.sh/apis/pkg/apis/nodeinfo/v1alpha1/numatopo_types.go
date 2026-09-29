@@ -48,6 +48,14 @@ type CPUInfo struct {
 // +kubebuilder:validation:Enum=CPUManagerPolicy;TopologyManagerPolicy
 type PolicyName string
 
+type GPUInfo struct {
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=63
+	NUMANodeID  int    `json:"numa,omitempty" protobuf:"varint,1,opt,name=numa"`
+	BusID       string `json:"busID,omitempty" protobuf:"bytes,2,opt,name=busID"`
+	DeviceModel string `json:"deviceModel,omitempty" protobuf:"bytes,3,opt,name=deviceModel"`
+}
+
 const (
 	// CPUManagerPolicy shows cpu manager policy type
 	CPUManagerPolicy PolicyName = "CPUManagerPolicy"
@@ -75,6 +83,8 @@ type NumatopoSpec struct {
 	// Key is cpu id
 	// +optional
 	CPUDetail map[string]CPUInfo `json:"cpuDetail,omitempty" protobuf:"bytes,4,rep,name=cpuDetail"`
+	// +optional
+	GPUDetail map[string]GPUInfo `json:"gpuDetail,omitempty" protobuf:"bytes,6,rep,name=gpuDetail"`
 }
 
 // +genclient

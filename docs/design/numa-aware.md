@@ -17,10 +17,11 @@ We target to resolve the limitation to make scheduler NUMA topology aware so as 
    - Schedule pods to the best node for NUMA topology.
 ## Goals
  - Support cpu resource topology scheduling
+ - Support native NVIDIA GPU and CPU topology scheduling; see the [GPU NUMA guide](../user-guide/how_to_use_gpu_numa_aware.md).
  - Support pod-level topology policies
 
 ## Non-Goals
- - Support other resources topology schedule, such as GPU.
+ - Support vGPU, MIG, and memory NUMA placement.
  
 
 ## Design Action

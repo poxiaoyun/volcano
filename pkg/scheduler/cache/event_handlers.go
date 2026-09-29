@@ -1217,6 +1217,7 @@ func getNumaInfo(srcInfo *nodeinfov1alpha1.Numatopology) *schedulingapi.Numatopo
 		Policies:    make(map[nodeinfov1alpha1.PolicyName]string),
 		NumaResMap:  make(map[string]*schedulingapi.ResourceInfo),
 		CPUDetail:   topology.CPUDetails{},
+		GPUDetail:   schedulingapi.GPUDetails{},
 		ResReserved: make(v1.ResourceList),
 	}
 
@@ -1245,6 +1246,22 @@ func getNumaInfo(srcInfo *nodeinfov1alpha1.Numatopology) *schedulingapi.Numatopo
 			SocketID:   detail.SocketID,
 			CoreID:     detail.CoreID,
 		}
+	}
+
+	for gpuIndex, detail := range srcInfo.Spec.GPUDetail {
+		gpuID, err := strconv.Atoi(gpuIndex)
+		if err != nil || gpuID < 0 || detail.NUMANodeID < 0 || detail.NUMANodeID >= 64 {
+			klog.Warningf("Ignoring invalid GPU topology entry %q on node %s", gpuIndex, srcInfo.Name)
+			continue
+		}
+		if !numaInfo.CPUDetail.NUMANodes().Contains(detail.NUMANodeID) {
+			klog.Warningf("Ignoring GPU %q on unknown NUMA node %d on node %s", gpuIndex, detail.NUMANodeID, srcInfo.Name)
+			continue
+		}
+		numaInfo.GPUDetail[gpuID] = schedulingapi.GPUInfo{NUMANodeID: detail.NUMANodeID}
+	}
+	if gpuResources := numaInfo.NumaResMap["nvidia.com/gpu"]; gpuResources != nil {
+		gpuResources.Allocatable = gpuResources.Allocatable.Intersection(numaInfo.GPUDetail.GPUsInNUMANodes(numaInfo.GPUDetail.NUMANodes().List()...))
 	}
 
 	resReserved, err := schedulingapi.ParseResourceList(srcInfo.Spec.ResReserved)
@@ -1315,6 +1332,9 @@ func (sc *SchedulerCache) UpdateNumaInfoV1alpha1(oldObj, newObj interface{}) {
 	ss, ok := newObj.(*nodeinfov1alpha1.Numatopology)
 	if !ok {
 		klog.Errorf("Cannot convert oldObj to *nodeinfov1alpha1.Numatopology: %v", newObj)
+		return
+	}
+	if previous, valid := oldObj.(*nodeinfov1alpha1.Numatopology); valid && previous.ResourceVersion != "" && previous.ResourceVersion == ss.ResourceVersion {
 		return
 	}
 

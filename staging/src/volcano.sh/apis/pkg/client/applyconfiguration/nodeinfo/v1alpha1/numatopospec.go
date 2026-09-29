@@ -37,6 +37,17 @@ type NumatopoSpecApplyConfiguration struct {
 	// Specifies the cpu topology info
 	// Key is cpu id
 	CPUDetail map[string]CPUInfoApplyConfiguration `json:"cpuDetail,omitempty"`
+	GPUDetail map[string]GPUInfoApplyConfiguration `json:"gpuDetail,omitempty"`
+}
+
+func (configuration *NumatopoSpecApplyConfiguration) WithGPUDetail(entries map[string]GPUInfoApplyConfiguration) *NumatopoSpecApplyConfiguration {
+	if configuration.GPUDetail == nil && len(entries) > 0 {
+		configuration.GPUDetail = make(map[string]GPUInfoApplyConfiguration, len(entries))
+	}
+	for gpuID, detail := range entries {
+		configuration.GPUDetail[gpuID] = detail
+	}
+	return configuration
 }
 
 // NumatopoSpecApplyConfiguration constructs a declarative configuration of the NumatopoSpec type for use with

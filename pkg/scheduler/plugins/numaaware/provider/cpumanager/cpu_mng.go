@@ -46,11 +46,12 @@ func (mng *cpuMng) Name() string {
 // guaranteedCPUs return the integer num of request cpu
 func guaranteedCPUs(container *v1.Container) int {
 	cpuQuantity := container.Resources.Requests[v1.ResourceCPU]
-	if cpuQuantity.Value()*1000 != cpuQuantity.MilliValue() {
+	request, valid := policy.IntegralQuantity(cpuQuantity)
+	if !valid {
 		return 0
 	}
 
-	return int(cpuQuantity.Value())
+	return request
 }
 
 // generateCPUTopologyHints return the numa topology hints based on

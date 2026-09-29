@@ -55,6 +55,33 @@ type ResourceInfo struct {
 	UsedPerNuma        map[int]float64 // key: NUMA ID
 }
 
+type GPUInfo struct {
+	NUMANodeID int
+}
+
+type GPUDetails map[int]GPUInfo
+
+func (details GPUDetails) NUMANodes() cpuset.CPUSet {
+	numaNodes := cpuset.New()
+	for _, detail := range details {
+		if detail.NUMANodeID >= 0 && detail.NUMANodeID < 64 {
+			numaNodes = numaNodes.Union(cpuset.New(detail.NUMANodeID))
+		}
+	}
+	return numaNodes
+}
+
+func (details GPUDetails) GPUsInNUMANodes(numaIDs ...int) cpuset.CPUSet {
+	numaNodes := cpuset.New(numaIDs...)
+	gpuIDs := cpuset.New()
+	for gpuID, detail := range details {
+		if gpuID >= 0 && detail.NUMANodeID >= 0 && detail.NUMANodeID < 64 && numaNodes.Contains(detail.NUMANodeID) {
+			gpuIDs = gpuIDs.Union(cpuset.New(gpuID))
+		}
+	}
+	return gpuIDs
+}
+
 // NumatopoInfo is the information about topology manager on the node
 type NumatopoInfo struct {
 	Namespace   string
@@ -62,6 +89,7 @@ type NumatopoInfo struct {
 	Policies    map[nodeinfov1alpha1.PolicyName]string
 	NumaResMap  map[string]*ResourceInfo
 	CPUDetail   topology.CPUDetails
+	GPUDetail   GPUDetails
 	ResReserved v1.ResourceList
 }
 
@@ -73,6 +101,7 @@ func (info *NumatopoInfo) DeepCopy() *NumatopoInfo {
 		Policies:    make(map[nodeinfov1alpha1.PolicyName]string),
 		NumaResMap:  make(map[string]*ResourceInfo),
 		CPUDetail:   topology.CPUDetails{},
+		GPUDetail:   GPUDetails{},
 		ResReserved: make(v1.ResourceList),
 	}
 
@@ -104,6 +133,9 @@ func (info *NumatopoInfo) DeepCopy() *NumatopoInfo {
 	for cpuID, detail := range cpuDetail {
 		numaInfo.CPUDetail[cpuID] = detail
 	}
+	for gpuID, detail := range info.GPUDetail {
+		numaInfo.GPUDetail[gpuID] = detail
+	}
 
 	resReserved := info.ResReserved
 	for resName, res := range resReserved {
@@ -118,28 +150,31 @@ func (info *NumatopoInfo) DeepCopy() *NumatopoInfo {
 // - true : the resource on kubelet is getting more or no change
 // - false :  the resource on kubelet is getting less
 func (info *NumatopoInfo) Compare(newInfo *NumatopoInfo) bool {
-	for resName := range info.NumaResMap {
-		oldSize := info.NumaResMap[resName].Allocatable.Size()
-		newSize := newInfo.NumaResMap[resName].Allocatable.Size()
-		if oldSize <= newSize {
-			return true
+	for resName, previous := range info.NumaResMap {
+		current, exists := newInfo.NumaResMap[resName]
+		if !exists || current == nil || previous == nil || !previous.Allocatable.IsSubsetOf(current.Allocatable) {
+			return false
 		}
 	}
 
-	return false
+	return true
 }
 
 // Allocate is the function to remove the allocated resource
 func (info *NumatopoInfo) Allocate(resSets ResNumaSets) {
 	for resName := range resSets {
-		info.NumaResMap[resName].Allocatable = info.NumaResMap[resName].Allocatable.Difference(resSets[resName])
+		if resourceInfo := info.NumaResMap[resName]; resourceInfo != nil {
+			resourceInfo.Allocatable = resourceInfo.Allocatable.Difference(resSets[resName])
+		}
 	}
 }
 
 // Release is the function to reclaim the allocated resource
 func (info *NumatopoInfo) Release(resSets ResNumaSets) {
 	for resName := range resSets {
-		info.NumaResMap[resName].Allocatable = info.NumaResMap[resName].Allocatable.Union(resSets[resName])
+		if resourceInfo := info.NumaResMap[resName]; resourceInfo != nil {
+			resourceInfo.Allocatable = resourceInfo.Allocatable.Union(resSets[resName])
+		}
 	}
 }
 

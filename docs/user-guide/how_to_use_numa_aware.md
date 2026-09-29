@@ -1,5 +1,7 @@
 # NUMA Aware User Guide
 
+For native NVIDIA GPU and CPU alignment, see the [GPU NUMA guide](how_to_use_gpu_numa_aware.md).
+
 ## Environment setup
 
 ### Pre-Condition
